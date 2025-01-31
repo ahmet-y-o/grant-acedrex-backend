@@ -8,11 +8,9 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
-	"os"
-	"strconv"
-	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
 )
 
@@ -32,10 +30,10 @@ type Player struct {
 }
 
 type Room struct {
-	RoomId  string    `json:"roomId"`
-	Game    game.Game `json:"-"`
-	Player1 Player    `json:"-"`
-	Player2 Player    `json:"-"`
+	RoomId string    `json:"roomId"`
+	Game   game.Game `json:"-"`
+	White  Player    `json:"-"`
+	Black  Player    `json:"-"`
 }
 
 func InitializeRooms() {
@@ -56,7 +54,22 @@ func generateHashID() string {
 	return fmt.Sprintf("%x", hash)[:8]
 }
 
+func GetRoomsList(w http.ResponseWriter, r *http.Request) {
+	idsSlice := []string{}
+	for key := range rooms {
+		idsSlice = append(idsSlice, key)
+	}
+	jsonData, err := json.Marshal(idsSlice)
+	if err != nil {
+		log.Fatalln("Failed at attempting marhaling rooms.")
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Write(jsonData)
+}
+
 func CreateRoom(w http.ResponseWriter, r *http.Request) {
+
 	// generate random Id
 	uuid := generateHashID()
 	rooms[uuid] = &Room{
@@ -68,70 +81,102 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("{\"roomId\":\"" + uuid + "\"}"))
 }
 
-func GetRoomsList(w http.ResponseWriter, r *http.Request) {
-
-	idsSlice := []string{}
-
-	for key := range rooms {
-		idsSlice = append(idsSlice, key)
-	}
-
-	jsonData, err := json.Marshal(idsSlice)
-	if err != nil {
-		log.Fatalln("Failed at attempting marhaling rooms.")
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Write(jsonData)
-}
-
 func JoinRoom(w http.ResponseWriter, r *http.Request) {
 	// get room id from query params
-	// TODO: upgrade connection to WS
-	g := game.InitilaizeGame()
+	roomId := chi.URLParam(r, "roomId")
+	room := rooms[roomId]
+	// TODO: check if room exists
+
+	// TODO: check if side exists (do we have to check if the query param exists?)
+	// TODO: query params?
+	// side = r.URL.Query().Get("side")
+	var side string
+	if room.Black.Conn == nil && room.White.Conn == nil {
+		// no player is present
+		side = "w" // auto choose white
+	} else if room.Black.Conn != nil && room.White.Conn == nil {
+		// only black is present
+		side = "w" // auto choose white
+	} else if room.Black.Conn == nil && room.White.Conn != nil {
+		// only white is present
+		side = "b"
+	} else {
+		// both are present
+		// set status code 403
+		w.WriteHeader(http.StatusForbidden)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("{\"error\":\"Room is full\"}"))
+		return
+	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Fatalln("Error when upgrading to webscoket", err)
 	}
+	defer conn.Close()
 
-	// TODO: assign a player from the game to the connection
-	for {
-		messageType, p, err := conn.ReadMessage()
-		if err != nil {
-			log.Println("Error in ReadMessage: ", err)
-
-		}
-
-		// move y can have 1 or 2 digits
-		// have "-" in between characters
-		message := strings.Split(string(p), "-")
-		log.Println(message)
-		//echo message to client
-		writer, err := conn.NextWriter(messageType)
-		if err != nil {
-			log.Println("Error in ReadMessage: ", err)
-		}
-		sxc := int(message[0][0])
-		sy, _ := strconv.Atoi(string(message[1]))
-		exc := int(message[2][0])
-		ey, _ := strconv.Atoi(string(message[3]))
-
-		fmt.Println(sxc, sy, exc, ey)
-		g, err := g.AttemptMove(sxc, sy, exc, ey)
-		if err != nil {
-			log.Println("Error in ReadMessage: ", err)
-
-		}
-		g.PrintBoard(os.Stdout, true)
-		// echo board to the client
-		g.PrintBoard(writer, true)
-
-		if err := conn.WriteMessage(messageType, p); err != nil {
-			log.Println(err)
-
-		}
+	player := Player{
+		Nickname: side,
+		Conn:     conn,
 	}
 
+	if side == "w" {
+		room.White = player
+	} else {
+		room.Black = player
+	}
+	conn.WriteJSON(WSMessage{
+		Type: "chat",
+		Data: side,
+	})
+
+	for {
+		var payload WSMessage
+		err := conn.ReadJSON(&payload)
+		if err != nil {
+			log.Println("Error in ReadMessage: ", err)
+		}
+		log.Println(payload)
+		switch payload.Type {
+		case "move":
+			// TODO: check if move is valid
+			tokenized_move, err := TokenizeMoveMessage(payload.Data)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			room.Game.AttemptMove(tokenized_move[0], tokenized_move[1], tokenized_move[2], tokenized_move[3])
+		case "chat":
+			room.BroadcastJSON(WSMessage{
+				Type: "chat",
+				Data: payload.Data,
+			})
+
+		}
+
+		/*
+			if err := conn.WriteMessage(messageType, p); err != nil {
+				log.Println(err)
+			}
+		*/
+	}
+
+}
+
+func (r *Room) Broadcast(messageType int, p []byte) {
+	if r.White.Conn != nil {
+		r.White.Conn.WriteMessage(messageType, p)
+	}
+	if r.Black.Conn != nil {
+		r.Black.Conn.WriteMessage(messageType, p)
+	}
+}
+
+func (r *Room) BroadcastJSON(m interface{}) {
+	if r.White.Conn != nil {
+		r.White.Conn.WriteJSON(m)
+	}
+	if r.Black.Conn != nil {
+		r.Black.Conn.WriteJSON(m)
+	}
 }

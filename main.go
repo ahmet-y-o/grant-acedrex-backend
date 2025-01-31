@@ -3,27 +3,35 @@ package main
 import (
 	"acedrex/ws"
 	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 )
 
 func main() {
-	/*
-		g := game.InitilaizeGame()
-		g, err := g.AttemptMove('a', 4, 'a', 5)
-		if err != nil {
-			fmt.Println(err)
-		}
-		fmt.Println('a', 4, 'a', 5)
-		g.PrintBoard(os.Stdout, true)
-	*/
-
 	ws.InitializeRooms()
 
+	r := chi.NewRouter()
+	r.Use(middleware.Logger)
+	r.Use(cors.Handler(cors.Options{
+		// AllowedOrigins:   []string{"https://foo.com"}, // Use this to allow specific origin hosts
+		AllowedOrigins: []string{"https://*", "http://*"},
+		// AllowOriginFunc:  func(r *http.Request, origin string) bool { return true },
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: false,
+		MaxAge:           300, // Maximum value not ignored by any of major browsers
+	}))
+
 	// Register the handler function for the root URL
-	http.HandleFunc("/", ws.GetRoomsList)
-	http.HandleFunc("/create-room", ws.CreateRoom)
-	http.HandleFunc("/join-room", ws.JoinRoom)
+	r.HandleFunc("/", ws.GetRoomsList)
+	r.Get("/create-room", ws.CreateRoom)
+	r.Options("/create-room", ws.CreateRoom)
+	r.HandleFunc("/join-room/{roomId}", ws.JoinRoom)
 
 	// Start the server on port 8080
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":8080", r)
 
 }
