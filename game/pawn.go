@@ -1,4 +1,4 @@
-package pieces
+package game
 
 type Pawn struct {
 	Tile  *Tile
@@ -32,5 +32,16 @@ func (p Pawn) String() string {
 	} else {
 		return "♟"
 	}
+}
 
+func (p Pawn) GetAvailableMoves(g *Game) []*Tile {
+	return nil
+}
+
+func (p Pawn) GAFENotation() string {
+	if p.Color == White {
+		return "P"
+	} else {
+		return "p"
+	}
 }

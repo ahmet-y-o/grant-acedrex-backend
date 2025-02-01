@@ -1,4 +1,4 @@
-package pieces
+package game
 
 // Same as bishop
 
@@ -31,5 +31,17 @@ func (c Crocodile) String() string {
 		return "♗"
 	} else {
 		return "♝"
+	}
+}
+
+func (c Crocodile) GetAvailableMoves(g *Game) []*Tile {
+	return nil
+}
+
+func (c Crocodile) GAFENotation() string {
+	if c.Color == White {
+		return "C"
+	} else {
+		return "c"
 	}
 }

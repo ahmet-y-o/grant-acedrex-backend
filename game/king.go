@@ -1,4 +1,4 @@
-package pieces
+package game
 
 type King struct {
 	Tile     *Tile
@@ -31,5 +31,17 @@ func (k King) String() string {
 		return "♔"
 	} else {
 		return "♚"
+	}
+}
+
+func (k King) GetAvailableMoves(g *Game) []*Tile {
+	return nil
+}
+
+func (k King) GAFENotation() string {
+	if k.Color == White {
+		return "K"
+	} else {
+		return "k"
 	}
 }

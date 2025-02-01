@@ -1,4 +1,4 @@
-package pieces
+package game
 
 type Lion struct {
 	Tile  *Tile
@@ -29,5 +29,17 @@ func (l Lion) String() string {
 		return "🩏"
 	} else {
 		return "🩒"
+	}
+}
+
+func (l Lion) GetAvailableMoves(g *Game) []*Tile {
+	return nil
+}
+
+func (l Lion) GAFENotation() string {
+	if l.Color == White {
+		return "L"
+	} else {
+		return "l"
 	}
 }

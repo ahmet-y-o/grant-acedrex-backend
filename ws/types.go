@@ -30,9 +30,6 @@ func TokenizeMoveMessage(msg string) ([]string, error) {
 		} else if unicode.IsDigit(v) {
 			acc += string(v)
 			continue
-		} else if v == '-' {
-			toReturn = append(toReturn, acc)
-			continue
 		} else {
 			return nil, errors.New("invalid message")
 		}

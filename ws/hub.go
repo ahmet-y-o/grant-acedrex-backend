@@ -8,6 +8,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -68,6 +69,9 @@ func GetRoomsList(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonData)
 }
 
+// TODO: garbage collector for rooms without players
+// TODO: check if the players are still connected
+
 func CreateRoom(w http.ResponseWriter, r *http.Request) {
 
 	// generate random Id
@@ -84,83 +88,110 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 func JoinRoom(w http.ResponseWriter, r *http.Request) {
 	// get room id from query params
 	roomId := chi.URLParam(r, "roomId")
-	room := rooms[roomId]
-	// TODO: check if room exists
+	room, exists := rooms[roomId]
 
-	// TODO: check if side exists (do we have to check if the query param exists?)
-	// TODO: query params?
-	// side = r.URL.Query().Get("side")
-	var side string
-	if room.Black.Conn == nil && room.White.Conn == nil {
-		// no player is present
-		side = "w" // auto choose white
-	} else if room.Black.Conn != nil && room.White.Conn == nil {
-		// only black is present
-		side = "w" // auto choose white
-	} else if room.Black.Conn == nil && room.White.Conn != nil {
-		// only white is present
-		side = "b"
-	} else {
-		// both are present
-		// set status code 403
-		w.WriteHeader(http.StatusForbidden)
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte("{\"error\":\"Room is full\"}"))
+	if !exists {
+		http.Error(w, "Room not found", http.StatusNotFound)
+		return
+	}
+
+	side, err := room.determinePlayerSide()
+
+	if err != nil {
+		// room is full
+		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Fatalln("Error when upgrading to webscoket", err)
+		http.Error(w, "Error upgrading to websocket", http.StatusInternalServerError)
+		return
 	}
-	defer conn.Close()
 
 	player := Player{
-		Nickname: side,
+		Nickname: "Player " + side.String(),
 		Conn:     conn,
 	}
+	defer func() {
+		conn.Close()
+		room.handlePlayerDisconnect(side)
+	}()
 
-	if side == "w" {
+	if side == game.White {
 		room.White = player
 	} else {
 		room.Black = player
 	}
-	conn.WriteJSON(WSMessage{
-		Type: "chat",
-		Data: side,
+
+	conn.SetCloseHandler(func(code int, text string) error {
+		room.handlePlayerDisconnect(side)
+		return nil
 	})
 
+	if err := conn.WriteJSON(WSMessage{
+		Type: "side",
+		Data: side.String(),
+	}); err != nil {
+		// TODO: understand how if err := conn works
+		return
+	}
+
+	room.BroadcastJSON(WSMessage{
+		Type: "chat",
+		Data: side.String() + " has joined the room.",
+	})
+
+	// Main loop
 	for {
 		var payload WSMessage
+
 		err := conn.ReadJSON(&payload)
 		if err != nil {
-			log.Println("Error in ReadMessage: ", err)
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("WebSocket error: %v", err)
+			}
+			break
 		}
+
+		// TODO: debug, delete later
 		log.Println(payload)
+
 		switch payload.Type {
 		case "move":
 			// TODO: check if move is valid
 			tokenized_move, err := TokenizeMoveMessage(payload.Data)
 			if err != nil {
 				log.Println(err)
-				return
 			}
-			room.Game.AttemptMove(tokenized_move[0], tokenized_move[1], tokenized_move[2], tokenized_move[3])
+			log.Println(tokenized_move)
+			if side != room.Game.Turn {
+				conn.WriteJSON(WSMessage{
+					Type: "error",
+					Data: "Not your turn",
+				})
+				continue
+			}
+			err = room.Game.Move(tokenized_move[0], tokenized_move[1], tokenized_move[2], tokenized_move[3])
+			if err != nil {
+				conn.WriteJSON(WSMessage{
+					Type: "error",
+					Data: err.Error(),
+				})
+				continue
+			}
+			room.BroadcastJSON(WSMessage{
+				Type: "move",
+				Data: payload.Data,
+			})
+			room.Game.PrintBoard(os.Stdout, false)
 		case "chat":
 			room.BroadcastJSON(WSMessage{
 				Type: "chat",
 				Data: payload.Data,
 			})
-
 		}
-
-		/*
-			if err := conn.WriteMessage(messageType, p); err != nil {
-				log.Println(err)
-			}
-		*/
 	}
-
 }
 
 func (r *Room) Broadcast(messageType int, p []byte) {
@@ -179,4 +210,29 @@ func (r *Room) BroadcastJSON(m interface{}) {
 	if r.Black.Conn != nil {
 		r.Black.Conn.WriteJSON(m)
 	}
+}
+
+func (room *Room) determinePlayerSide() (game.Color, error) {
+	switch {
+	case room.Black.Conn == nil && room.White.Conn == nil:
+		return game.White, nil
+	case room.Black.Conn != nil && room.White.Conn == nil:
+		return game.White, nil
+	case room.Black.Conn == nil && room.White.Conn != nil:
+		return game.Black, nil
+	default:
+		return game.White, fmt.Errorf("room is full")
+	}
+}
+
+func (r *Room) handlePlayerDisconnect(side game.Color) {
+	if side == game.White {
+		r.White = Player{}
+	} else {
+		r.Black = Player{}
+	}
+	r.BroadcastJSON(WSMessage{
+		Type: "chat",
+		Data: side.String() + " has left the room.",
+	})
 }

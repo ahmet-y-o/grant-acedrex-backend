@@ -1,4 +1,4 @@
-package pieces
+package game
 
 type Rook struct {
 	Tile  *Tile
@@ -29,5 +29,17 @@ func (r Rook) String() string {
 		return "♖"
 	} else {
 		return "♜"
+	}
+}
+
+func (r Rook) GetAvailableMoves(g *Game) []*Tile {
+	return nil
+}
+
+func (r Rook) GAFENotation() string {
+	if r.Color == White {
+		return "R"
+	} else {
+		return "r"
 	}
 }

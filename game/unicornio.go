@@ -1,4 +1,4 @@
-package pieces
+package game
 
 type Unicornio struct {
 	Tile  *Tile
@@ -29,5 +29,17 @@ func (u Unicornio) String() string {
 		return "🩎"
 	} else {
 		return "🩑"
+	}
+}
+
+func (u Unicornio) GetAvailableMoves(g *Game) []*Tile {
+	return nil
+}
+
+func (u Unicornio) GAFENotation() string {
+	if u.Color == White {
+		return "U"
+	} else {
+		return "u"
 	}
 }

@@ -1,4 +1,4 @@
-package pieces
+package game
 
 type Giraffe struct {
 	Tile  *Tile
@@ -31,4 +31,16 @@ func (g Giraffe) String() string {
 		return "♞"
 	}
 
+}
+
+func (giraffe Giraffe) GetAvailableMoves(g *Game) []*Tile {
+	return nil
+}
+
+func (g Giraffe) GAFENotation() string {
+	if g.Color == White {
+		return "G"
+	} else {
+		return "g"
+	}
 }
