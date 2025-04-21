@@ -7,6 +7,7 @@ import (
 
 type WSMessage struct {
 	Type string `json:"type"`
+	From string `json:"from"`
 	Data string `json:"data"`
 }
 

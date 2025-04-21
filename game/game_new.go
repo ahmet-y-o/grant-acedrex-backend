@@ -1,6 +1,7 @@
 package game
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -80,9 +81,12 @@ func (g *Game) ToGAFEN() string {
  */
 func (g *Game) IsLegal() bool {
 	var kingCoords Coords
-	if g.Turn == White {
+	var kingColor Color
+	if g.Turn == Black {
+		kingColor = Black
 		kingCoords = g.BlackKingCoords
 	} else {
+		kingColor = White
 		kingCoords = g.WhiteKingCoords
 	}
 
@@ -104,6 +108,7 @@ func (g *Game) IsLegal() bool {
 				}
 				for _, move := range moves {
 					if move.X == kingCoords.X && move.Y == kingCoords.Y {
+						fmt.Println(move.X, " ", move.Y, " is clashing with ", kingColor, " ", kingCoords.X, " ", kingCoords.Y)
 						return false
 					}
 				}
@@ -151,13 +156,16 @@ func (g *Game) Move(start_x string, start_y string, end_x string, end_y string) 
 		if move.X == end_pos.X && move.Y == end_pos.Y {
 			g.Board[start_pos.Y][start_pos.X] = nil
 			g.Board[end_pos.Y][end_pos.X] = start_piece
-			g.Turn = !g.Turn
 			if !g.IsLegal() {
 				// restore position
 				g.Board[start_pos.Y][start_pos.X] = start_piece
 				g.Board[end_pos.Y][end_pos.X] = end_piece_address
+				if start_piece.Type == RookType {
+					return errors.New("rook error unknown")
+				}
 				return errors.New("illegal move")
 			} else {
+				g.Turn = !g.Turn
 				return nil
 			}
 		}
@@ -168,9 +176,18 @@ func (g *Game) GetTurn() Color {
 	return g.Turn
 }
 
-func (g *Game) CheckStatus() int {
-	// TODO: implement an enum iota
-	return 0
+/*
+* TODO: implement if there are no moves
+Check if the game is fisinhed
+Conditions:
+1. Checkmate wins the game
+2. Stalemate wins the game
+3. Capturing all pieces except the king is a win
+4. 3 fold repetition is a draw (self rule to make the games end)
+5. there are theoritical draws, such as rook vs rook. TODO: decide what to do
+*/
+func (g *Game) CheckStatus() {
+
 }
 
 func (g *Game) GetAvailableMoves(x string, y int) ([]Coords, error) {
@@ -197,4 +214,37 @@ func (g *Game) PrintBoard(writer io.Writer) {
 		}
 		fmt.Fprintf(writer, "\n")
 	}
+}
+
+func (g *Game) AllAvailableMoves() string {
+	toReturn := map[string][]string{}
+
+	for y := 0; y < 12; y++ {
+		for x := 0; x < 12; x++ {
+			piece := g.Board[y][x]
+			if piece == nil {
+				continue
+			}
+			piece_coords_notation, err := CoordsToNotation(Coords{x, y})
+			if err != nil {
+				panic(err)
+			}
+			moves := pieceMoves(x, y, g)
+			moves_notation := []string{}
+			for _, move := range moves {
+				move_coords, err := CoordsToNotation(move)
+				if err != nil {
+					panic(err)
+				}
+				moves_notation = append(moves_notation, move_coords)
+			}
+			toReturn[piece_coords_notation] = moves_notation
+		}
+	}
+	// marshal toReturn to json string
+	toReturn_json, err := json.Marshal(toReturn)
+	if err != nil {
+		panic(err)
+	}
+	return string(toReturn_json)
 }

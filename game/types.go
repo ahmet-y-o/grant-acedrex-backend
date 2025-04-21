@@ -75,6 +75,14 @@ const (
 
 type Color bool
 
+func (c Color) String() string {
+	if c == White {
+		return "White"
+	} else {
+		return "Black"
+	}
+}
+
 const (
 	White Color = true
 	Black Color = false

@@ -10,7 +10,7 @@ func NewGameBuilder() GameBuilder {
 	}
 }
 
-func InitStandartGame() Game {
+func InitStandardGame() Game {
 	g := Game{
 		Board:            make([][]*Piece, 12),
 		Turn:             White,
@@ -52,7 +52,7 @@ func InitStandartGame() Game {
 	g.Board[11][5] = &Piece{White, AancaType}
 	g.Board[11][6] = &Piece{White, KingType}
 	g.WhiteKing = g.Board[11][6]
-	g.BlackKingCoords = Coords{6, 11}
+	g.WhiteKingCoords = Coords{6, 11}
 	g.Board[11][7] = &Piece{White, CrocodileType}
 	g.Board[11][8] = &Piece{White, GiraffeType}
 	g.Board[11][9] = &Piece{White, UnicornoType}

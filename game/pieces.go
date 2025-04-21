@@ -1,5 +1,7 @@
 package game
 
+// calculates pseudo-legal moves
+
 func pieceMoves(start_x int, start_y int, game *Game) []Coords {
 	piece := game.Board[start_y][start_x]
 
@@ -28,109 +30,66 @@ func pieceMoves(start_x int, start_y int, game *Game) []Coords {
 // TODO: implement promotion
 func pawnMoves(start_x int, start_y int, game *Game) []Coords {
 	pawn := game.Board[start_y][start_x]
+	var direction int
+	if pawn.Color == White {
+		direction = -1
+	} else {
+		direction = +1
+	}
 	toReturn := []Coords{}
 
-	if pawn.Color == Black {
-		// black pawns can only move up
-		for i := start_y + 1; i < 12; i++ {
-			// check if there is a piece in the way
-			piece := game.Board[i][start_x]
-			if piece != nil && piece.Color == pawn.Color {
-				break
-			} else if piece != nil && piece.Color != pawn.Color {
-				toReturn = append(toReturn, Coords{start_x, i})
-				break
-			}
-			toReturn = append(toReturn, Coords{start_x, i})
-		}
-		// black pawns can only attack upleft and upright
-		// check if there are any friendly piece there
-		if start_x-1 >= 0 && game.Board[start_y+1][start_x-1] != nil && game.Board[start_y+1][start_x-1].Color == White {
-			toReturn = append(toReturn, Coords{start_x - 1, start_y + 1})
-		}
-		if start_x+1 < 12 && game.Board[start_y+1][start_x+1] != nil && game.Board[start_y+1][start_x+1].Color == White {
-			toReturn = append(toReturn, Coords{start_x + 1, start_y + 1})
-		}
-	} else {
-		// white pawns can only move down
-		for i := start_y - 1; i >= 0; i-- {
-			// check if there is a piece in the way
-			piece := game.Board[i][start_x]
-			if piece != nil && piece.Color == pawn.Color {
-				break
-			} else if piece != nil && piece.Color != pawn.Color {
-				toReturn = append(toReturn, Coords{start_x, i})
-				break
-			}
-			toReturn = append(toReturn, Coords{start_x, i})
-		}
-		// white pawns can only attack downleft and downright
-		// check if there are any friendly piece there
-		if start_x-1 >= 0 && game.Board[start_y-1][start_x-1] != nil && game.Board[start_y-1][start_x-1].Color == Black {
-			toReturn = append(toReturn, Coords{start_x - 1, start_y - 1})
-		}
-		if start_x+1 < 12 && game.Board[start_y-1][start_x+1] != nil && game.Board[start_y-1][start_x+1].Color == Black {
-			toReturn = append(toReturn, Coords{start_x + 1, start_y - 1})
-		}
+	// can move forward
+	new_x := start_x
+	new_y := start_y + direction
+	if InBounds(new_x, new_y) && (game.Board[new_y][new_x] == nil) {
+		toReturn = append(toReturn, Coords{X: new_x, Y: new_y})
+	}
+
+	// can capture diagonally
+	new_x = start_x + 1
+	new_y = start_y + direction
+	if InBounds(new_x, new_y) && (game.Board[new_y][new_x] != nil) && (game.Board[new_y][new_x].Color != pawn.Color) {
+		toReturn = append(toReturn, Coords{X: new_x, Y: new_y})
+	}
+
+	new_x = start_x - 1
+	new_y = start_y + direction
+	if InBounds(new_x, new_y) && (game.Board[new_y][new_x] != nil) && (game.Board[new_y][new_x].Color != pawn.Color) {
+		toReturn = append(toReturn, Coords{X: new_x, Y: new_y})
 	}
 
 	return toReturn
 }
 
 func rookMoves(start_x int, start_y int, game *Game) []Coords {
-	rook := game.Board[start_y][start_x]
 	toReturn := []Coords{}
 
-	// up
-	for i := start_y + 1; i < 12; i++ {
-		// check if there is a piece in the way
-		piece := game.Board[i][start_x]
-		if piece != nil && piece.Color == rook.Color {
-			break
-		} else if piece != nil && piece.Color != rook.Color {
-			toReturn = append(toReturn, Coords{start_x, i})
-			break
-		}
-		toReturn = append(toReturn, Coords{start_x, i})
+	rook := game.Board[start_y][start_x]
+
+	directions := []Coords{
+		{1, 0}, {0, 1},
+		{-1, 0}, {0, -1},
 	}
 
-	// down
-	for i := start_y - 1; i >= 0; i-- {
-		// check if there is a piece in the way
-		piece := game.Board[i][start_x]
-		if piece != nil && piece.Color == rook.Color {
-			break
-		} else if piece != nil && piece.Color != rook.Color {
-			toReturn = append(toReturn, Coords{start_x, i})
-			break
+	for _, direction := range directions {
+		new_x := start_x
+		new_y := start_y
+		for {
+			new_x += direction.X
+			new_y += direction.Y
+			if !InBounds(new_x, new_y) {
+				break
+			}
+			piece := game.Board[new_y][new_x]
+			if piece == nil {
+				toReturn = append(toReturn, Coords{X: new_x, Y: new_y})
+			} else if piece.Color != rook.Color {
+				toReturn = append(toReturn, Coords{X: new_x, Y: new_y})
+				break
+			} else {
+				break
+			}
 		}
-		toReturn = append(toReturn, Coords{start_x, i})
-	}
-
-	// left
-	for i := start_x - 1; i >= 0; i-- {
-		// check if there is a piece in the way
-		piece := game.Board[start_y][i]
-		if piece != nil && piece.Color == rook.Color {
-			break
-		} else if piece != nil && piece.Color != rook.Color {
-			toReturn = append(toReturn, Coords{i, start_y})
-			break
-		}
-		toReturn = append(toReturn, Coords{i, start_y})
-	}
-
-	// right
-	for i := start_x + 1; i < 12; i++ {
-		// check if there is a piece in the way
-		piece := game.Board[start_y][i]
-		if piece != nil && piece.Color == rook.Color {
-			break
-		} else if piece != nil && piece.Color != rook.Color {
-			toReturn = append(toReturn, Coords{i, start_y})
-			break
-		}
-		toReturn = append(toReturn, Coords{i, start_y})
 	}
 
 	return toReturn
@@ -212,13 +171,15 @@ func giraffeMoves(start_x int, start_y int, game *Game) []Coords {
 		if new_x >= 0 && new_x < 12 && new_y >= 0 && new_y < 12 {
 			// check if there is a piece in the way
 			piece := game.Board[new_y][new_x]
-			if piece != nil && piece.Color == giraffe.Color {
-				continue
-			} else if piece != nil && piece.Color != giraffe.Color {
+			if piece == nil {
 				toReturn = append(toReturn, Coords{new_x, new_y})
-				break
+				continue
+			} else if piece.Color == giraffe.Color {
+				continue
+			} else if piece.Color != giraffe.Color {
+				toReturn = append(toReturn, Coords{new_x, new_y})
+				continue
 			}
-			toReturn = append(toReturn, Coords{new_x, new_y})
 		}
 	}
 	return toReturn
@@ -256,39 +217,42 @@ func lionMoves(start_x int, start_y int, game *Game) []Coords {
 func unicornioMoves(start_x int, start_y int, game *Game) []Coords {
 	toReturn := []Coords{}
 	unicornio := game.Board[start_y][start_x]
-	// first leaps like a classic knight (3,2 leaper)
+	// first leaps like a classic knight (2,1 leaper)
 	// then optionally moves diagonnaly in the leap direction
 	leap_directions := []Coords{
-		{3, 2}, {3, -2}, {-3, 2}, {-3, -2},
-		{2, 3}, {2, -3}, {-2, 3}, {-2, -3},
+		{2, 1}, {2, -1}, {-2, 1}, {-2, -1},
+		{1, 2}, {1, -2}, {-1, 2}, {-1, -2},
 	}
 	for _, direction := range leap_directions {
 		new_x := start_x + direction.X
 		new_y := start_y + direction.Y
-		if new_x >= 0 && new_x < 12 && new_y >= 0 && new_y < 12 {
-			// check if there is a piece in the way
+		if InBounds(new_x, new_y) {
+			// check if there is a piece on the tile
 			piece := game.Board[new_y][new_x]
-			if piece != nil && piece.Color == unicornio.Color {
+			if piece == nil {
+				toReturn = append(toReturn, Coords{new_x, new_y})
+			} else if piece.Color != unicornio.Color {
+				// capture the piece, dont check diagonal
+				toReturn = append(toReturn, Coords{new_x, new_y})
 				continue
-			} else if piece != nil && piece.Color != unicornio.Color {
-				toReturn = append(toReturn, Coords{new_x, new_y})
-				break
 			} else {
-				toReturn = append(toReturn, Coords{new_x, new_y})
-				// then optional moves diagonnaly in the leap direction
+				continue
+			}
+			// optinonally move diagonally
+			for {
 				new_x += GetSign(direction.X)
 				new_y += GetSign(direction.Y)
-				if new_x >= 0 && new_x < 12 && new_y >= 0 && new_y < 12 {
-					// check if there is a piece in the way
-					piece := game.Board[new_y][new_x]
-					if piece != nil && piece.Color == unicornio.Color {
-						break
-					} else if piece != nil && piece.Color != unicornio.Color {
-						toReturn = append(toReturn, Coords{new_x, new_y})
-						break
-					} else {
-						toReturn = append(toReturn, Coords{new_x, new_y})
-					}
+				if !InBounds(new_x, new_y) {
+					break
+				}
+				piece = game.Board[new_y][new_x]
+				if piece == nil {
+					toReturn = append(toReturn, Coords{new_x, new_y})
+				} else if piece.Color != unicornio.Color {
+					toReturn = append(toReturn, Coords{new_x, new_y})
+					break
+				} else {
+					break
 				}
 			}
 
@@ -309,48 +273,56 @@ func aancaMoves(start_x int, start_y int, game *Game) []Coords {
 	for _, direction := range diagonal_directions {
 		new_x := start_x + direction.X
 		new_y := start_y + direction.Y
-		if new_x >= 0 && new_x < 12 && new_y >= 0 && new_y < 12 {
-			// check if there is a piece in the way
+		if InBounds(new_x, new_y) {
+			// check if there is a piece on the tile
 			piece := game.Board[new_y][new_x]
-			if piece != nil && piece.Color == aanca.Color {
+			if piece == nil {
+				toReturn = append(toReturn, Coords{new_x, new_y})
+			} else if piece.Color != aanca.Color {
+				// capture the piece, dont check diagonal
+				toReturn = append(toReturn, Coords{new_x, new_y})
 				continue
-			} else if piece != nil && piece.Color != aanca.Color {
-				toReturn = append(toReturn, Coords{new_x, new_y})
-				break
 			} else {
-				toReturn = append(toReturn, Coords{new_x, new_y})
-				// then optionally continuing orthogonally outward any number of squares
-				// horizontal
+				continue
+			}
+			//  optinonally move orthogonally
+			// first on row
+			for {
 				new_x += GetSign(direction.X)
-				if new_x >= 0 && new_x < 12 && new_y >= 0 && new_y < 12 {
-					// check if there is a piece in the way
-					piece := game.Board[new_y][new_x]
-					if piece != nil && piece.Color == aanca.Color {
-						break
-					} else if piece != nil && piece.Color != aanca.Color {
-						toReturn = append(toReturn, Coords{new_x, new_y})
-						break
-					} else {
-						toReturn = append(toReturn, Coords{new_x, new_y})
-					}
+				if !InBounds(new_x, new_y) {
+					break
 				}
-				// vertical
-				new_x = start_x + direction.X
-				new_y += GetSign(direction.Y)
-				if new_x >= 0 && new_x < 12 && new_y >= 0 && new_y < 12 {
-					// check if there is a piece in the way
-					piece := game.Board[new_y][new_x]
-					if piece != nil && piece.Color == aanca.Color {
-						break
-					} else if piece != nil && piece.Color != aanca.Color {
-						toReturn = append(toReturn, Coords{new_x, new_y})
-						break
-					} else {
-						toReturn = append(toReturn, Coords{new_x, new_y})
-					}
+				piece := game.Board[new_y][new_x]
+				if piece == nil {
+					toReturn = append(toReturn, Coords{new_x, new_y})
+				} else if piece.Color != aanca.Color {
+					toReturn = append(toReturn, Coords{new_x, new_y})
+					break
+				} else {
+					break
 				}
 			}
+			// then on column
+			// reset x position
+			new_x = start_x + direction.X
+			for {
+				new_y += GetSign(direction.Y)
+				if !InBounds(new_x, new_y) {
+					break
+				}
+				piece := game.Board[new_y][new_x]
+				if piece == nil {
+					toReturn = append(toReturn, Coords{new_x, new_y})
+				} else if piece.Color != aanca.Color {
+					toReturn = append(toReturn, Coords{new_x, new_y})
+					break
+				} else {
+					break
+				}
+			}
+
 		}
+
 	}
 	return toReturn
 }
